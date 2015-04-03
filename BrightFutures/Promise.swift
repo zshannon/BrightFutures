@@ -46,13 +46,11 @@ public class Promise<T> {
     }
 	
 	public func cached(value: T) {
-		let result = Result(value)
-		self.future.cached(result)
+		self.future.cached(value)
 	}
 	
 	public func tryCached(value: T) -> Bool {
-		let result = Result(value)
-		return self.future.tryCached(result)
+		return self.future.tryCached(value)
 	}
 	
     public func success(value: T) {

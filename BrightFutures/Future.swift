@@ -96,7 +96,7 @@ public class Future<T> {
 	public typealias ProgressCallback = (progress: Float, total: Float) -> ()
     public typealias FailureCallback = (NSError) -> ()
 	
-	var cachedResult: Result<T>? = nil
+	var cachedResult: T? = nil
     var result: Result<T>? = nil
 	var progress: Float = 0.0
 	var total: Float = 1.0
@@ -118,7 +118,7 @@ public class Future<T> {
     var callbacks: [CallbackInternal] = Array<CallbackInternal>()
 	
 	let cachedCallbackAdministrationQueue = Queue()
-	var cachedCallbacks: [CallbackInternal] = Array<CallbackInternal>()
+	var cachedCallbacks: [SuccessCallback] = Array<SuccessCallback>()
 	
 	let progressCallbackAdministrationQueue = Queue()
 	var progressCallbacks: [CallbackInternal] = Array<CallbackInternal>()
@@ -131,9 +131,11 @@ public class Future<T> {
      * Should be run on the callbackAdministrationQueue
      */
 	
-	private func runCachedCallbacks(result: Result<T>) {
-		for callback in self.cachedCallbacks {
-			callback(future: self)
+	private func runCachedCallbacks() {
+		if let value = self.cachedResult {
+			for callback in self.cachedCallbacks {
+				callback(value)
+			}
 		}
 	}
 	
@@ -157,14 +159,15 @@ public class Future<T> {
  * The internal API for completing a Future
  */
 internal extension Future {
-	func cached(result: Result<T>) {
-		let succeeded = tryCached(result)
+	func cached(value: T) {
+		let succeeded = tryCached(value)
 		assert(succeeded)
 	}
 	
-	func tryCached(result: Result<T>) -> Bool {
+	func tryCached(value: T) -> Bool {
 		return self.cachedCallbackAdministrationQueue.sync {
-			self.runCachedCallbacks(result)
+			self.cachedResult = value
+			self.runCachedCallbacks()
 			return true;
 		};
 	}
@@ -177,7 +180,7 @@ internal extension Future {
     func tryComplete(result: Result<T>) -> Bool {
         switch result {
 		case .Cached(let val):
-			return self.tryCached(Result(val.value))
+			return self.tryCached(val.value)
         case .Success(let val):
             return self.trySuccess(val.value)
         case .Failure(let err):
@@ -360,15 +363,15 @@ public extension Future {
  * This extension contains all methods for registering callbacks
  */
 public extension Future {
-	public func onCached(callback: CompletionCallback) -> Future<T> {
+	public func onCached(callback: SuccessCallback) -> Future<T> {
 		return onCached(context: executionContextForCurrentContext(), callback: callback)
 	}
 	
-	public func onCached(context c: ExecutionContext = executionContextForCurrentContext(), callback: CompletionCallback) -> Future<T> {
-		let wrappedCallback : Future<T> -> () = { future in
+	public func onCached(context c: ExecutionContext = executionContextForCurrentContext(), callback: SuccessCallback) -> Future<T> {
+		let wrappedCallback : T? -> () = { future in
 			if let cachedRes = self.cachedResult {
 				c {
-					callback(result: cachedRes)
+					callback(cachedRes)
 					return
 				}
 			}
@@ -378,7 +381,7 @@ public extension Future {
 			if self.cachedResult == nil {
 				self.cachedCallbacks.append(wrappedCallback)
 			} else {
-				wrappedCallback(self)
+				wrappedCallback(self.cachedResult)
 			}
 		}
 		
@@ -480,7 +483,7 @@ public extension Future {
         self.onComplete(context: c) { res in
             switch (res) {
 			case .Cached(let v):
-				p.cached(f(v.value).cachedResult!.value!)
+				p.cached(f(v.value).cachedResult!)
 			case .Failure(let e):
                 p.failure(e)
             case .Success(let v):

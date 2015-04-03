@@ -182,6 +182,68 @@ extension BrightFuturesTests {
         
         self.waitForExpectationsWithTimeout(2, handler: nil)
     }
+	
+	func testProgress() {
+		let p = Promise<Int>()
+		let e = self.expectationWithDescription("complete after cache expectation")
+		var complete = false
+		var progressHappened = false
+		p.future.onProgress({ (progress, total) -> () in
+			progressHappened = true
+			XCTAssert(progress == 10)
+			XCTAssertFalse(complete)
+		})
+		p.future.onComplete({result -> () in
+			switch result {
+			case .Cached(let val):
+				XCTAssert(false)
+			case .Success(let val):
+				complete = true
+				XCTAssert(progressHappened)
+				XCTAssert(val.value == 123)
+			case .Failure(_):
+				XCTAssert(false)
+			case .Progress(_, _):
+				XCTAssert(false)
+			}
+			e.fulfill()
+		})
+		Queue.global.async { () -> () in
+			p.progress(10, total: 100)
+			NSThread.sleepForTimeInterval(0.2)
+			p.success(123)
+		}
+		self.waitForExpectationsWithTimeout(1, handler: nil)
+	}
+	
+	func testCached() {
+		let p = Promise<Int>()
+		let e = self.expectationWithDescription("complete after cache expectation")
+		let cachedValue = 10
+		let finalValue = 20
+		p.future.onCached({result -> () in
+			XCTAssert(result == cachedValue)
+		})
+		p.future.onComplete({result -> () in
+			switch result {
+			case .Cached(let val):
+				XCTAssert(false)
+			case .Success(let val):
+				XCTAssert(val.value == finalValue)
+			case .Failure(_):
+				XCTAssert(false)
+			case .Progress(_, _):
+				XCTAssert(false)
+			}
+			e.fulfill()
+		})
+		Queue.global.async { () -> () in
+			p.cached(cachedValue)
+			NSThread.sleepForTimeInterval(0.2)
+			p.success(finalValue)
+		}
+		self.waitForExpectationsWithTimeout(1, handler: nil)
+	}
     
     func testPromise() {
         let p = Promise<Int>()

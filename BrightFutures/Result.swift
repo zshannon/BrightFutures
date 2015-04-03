@@ -34,6 +34,7 @@ public final class Box<T> {
 }
 
 public enum Result<T> {
+	case Cached(Box<T>)
     case Success(Box<T>)
     case Failure(NSError)
 	case Progress(Float, Float)
@@ -45,6 +46,8 @@ public enum Result<T> {
     public var isSuccess: Bool {
         get {
             switch self {
+			case .Cached(_):
+				return false
             case .Success(_):
                 return true
             case .Failure(_):

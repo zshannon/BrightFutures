@@ -42,6 +42,8 @@ public func future<T>(context c: ExecutionContext, task: () -> Result<T>) -> Fut
     c {
         let result = task()
         switch result {
+		case .Cached(let boxedValue):
+			promise.cached(boxedValue.value)
         case .Success(let boxedValue):
             promise.success(boxedValue.value)
         case .Failure(let error):
@@ -93,7 +95,8 @@ public class Future<T> {
     typealias SuccessCallback = (T) -> ()
 	public typealias ProgressCallback = (progress: Float, total: Float) -> ()
     public typealias FailureCallback = (NSError) -> ()
-    
+	
+	var cachedResult: Result<T>? = nil
     var result: Result<T>? = nil
 	var progress: Float = 0.0
 	var total: Float = 1.0
@@ -114,6 +117,9 @@ public class Future<T> {
     let callbackExecutionSemaphore = Semaphore(value: 1);
     var callbacks: [CallbackInternal] = Array<CallbackInternal>()
 	
+	let cachedCallbackAdministrationQueue = Queue()
+	var cachedCallbacks: [CallbackInternal] = Array<CallbackInternal>()
+	
 	let progressCallbackAdministrationQueue = Queue()
 	var progressCallbacks: [CallbackInternal] = Array<CallbackInternal>()
     
@@ -124,6 +130,13 @@ public class Future<T> {
     /**
      * Should be run on the callbackAdministrationQueue
      */
+	
+	private func runCachedCallbacks(result: Result<T>) {
+		for callback in self.cachedCallbacks {
+			callback(future: self)
+		}
+	}
+	
     private func runCallbacks() {
         for callback in self.callbacks {
             callback(future: self)
@@ -144,6 +157,18 @@ public class Future<T> {
  * The internal API for completing a Future
  */
 internal extension Future {
+	func cached(result: Result<T>) {
+		let succeeded = tryCached(result)
+		assert(succeeded)
+	}
+	
+	func tryCached(result: Result<T>) -> Bool {
+		return self.cachedCallbackAdministrationQueue.sync {
+			self.runCachedCallbacks(result)
+			return true;
+		};
+	}
+	
     func complete(result: Result<T>) {
         let succeeded = tryComplete(result)
         assert(succeeded)
@@ -151,6 +176,8 @@ internal extension Future {
     
     func tryComplete(result: Result<T>) -> Bool {
         switch result {
+		case .Cached(let val):
+			return self.tryCached(Result(val.value))
         case .Success(let val):
             return self.trySuccess(val.value)
         case .Failure(let err):
@@ -333,6 +360,31 @@ public extension Future {
  * This extension contains all methods for registering callbacks
  */
 public extension Future {
+	public func onCached(callback: CompletionCallback) -> Future<T> {
+		return onCached(context: executionContextForCurrentContext(), callback: callback)
+	}
+	
+	public func onCached(context c: ExecutionContext = executionContextForCurrentContext(), callback: CompletionCallback) -> Future<T> {
+		let wrappedCallback : Future<T> -> () = { future in
+			if let cachedRes = self.cachedResult {
+				c {
+					callback(result: cachedRes)
+					return
+				}
+			}
+		}
+		
+		self.cachedCallbackAdministrationQueue.sync {
+			if self.cachedResult == nil {
+				self.cachedCallbacks.append(wrappedCallback)
+			} else {
+				wrappedCallback(self)
+			}
+		}
+		
+		return self
+	}
+	
     public func onComplete(callback: CompletionCallback) -> Future<T> {
         return onComplete(context: executionContextForCurrentContext(), callback: callback)
     }
@@ -427,7 +479,9 @@ public extension Future {
         let p: Promise<U> = Promise()
         self.onComplete(context: c) { res in
             switch (res) {
-            case .Failure(let e):
+			case .Cached(let v):
+				p.cached(f(v.value).cachedResult!.value!)
+			case .Failure(let e):
                 p.failure(e)
             case .Success(let v):
                 p.completeWith(f(v.value))
@@ -457,6 +511,9 @@ public extension Future {
         
         self.onComplete(context: c, callback: { result in
             switch result {
+			case .Cached(let v):
+				p.cached(f(v.value))
+				break;
             case .Success(let v):
                 p.success(f(v.value))
                 break;
@@ -506,7 +563,9 @@ public extension Future {
         
         self.onComplete(context: c) { result -> () in
             switch result {
-            case .Failure(let err):
+			case .Cached(let val):
+				break;
+			case .Failure(let err):
                 p.completeWith(task(err))
             case .Success(let val):
                 p.completeWith(self)

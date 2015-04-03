@@ -75,6 +75,8 @@ extension BrightFuturesTests {
         
         f.onComplete { result in
             switch result {
+			case .Cached(_):
+				XCTAssert(false)
             case .Success(let val):
                 XCTAssert(false)
             case .Failure(let err):
@@ -192,6 +194,8 @@ extension BrightFuturesTests {
         
         p.future.onComplete { result in
             switch result {
+			case .Cached(let val):
+				XCTAssert(false)
             case .Success(let val):
                 XCTAssert(Int(55) == val.value)
             case .Failure(_):

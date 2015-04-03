@@ -33,6 +33,8 @@ public class Promise<T> {
     public func completeWith(future: Future<T>) {
         future.onComplete { result in
             switch result {
+			case .Cached(let val):
+				self.cached(val.value)
             case .Success(let val):
                 self.success(val.value)
             case .Failure(let err):
@@ -42,7 +44,17 @@ public class Promise<T> {
             }
         }
     }
-    
+	
+	public func cached(value: T) {
+		let result = Result(value)
+		self.future.cached(result)
+	}
+	
+	public func tryCached(value: T) -> Bool {
+		let result = Result(value)
+		return self.future.tryCached(result)
+	}
+	
     public func success(value: T) {
         self.future.success(value)
     }

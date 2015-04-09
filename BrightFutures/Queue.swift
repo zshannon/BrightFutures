@@ -71,7 +71,7 @@ public struct Queue {
     
     /**
      * Synchronously executes the given block on the queue. 
-     * Identical to dispatch_sync(self.queue, block)
+     * Identical to dispatch_sync(self.underlyingQueue, block)
      */
     public func sync(block: () -> ()) {
         dispatch_sync(queue, block)
@@ -93,13 +93,31 @@ public struct Queue {
     
     /**
      * Asynchronously executes the given block on the queue.
-     * Identical to dispatch_async(self.queue, block)
+     * Identical to dispatch_async(self.underlyingQueue, block)
      */
     public func async(block: () -> ()) {
         dispatch_async(queue, block);
     }
     
     public func async<T>(block: () -> T) -> Future<T> {
+        let p = Promise<T>()
+
+        async {
+            p.success(block())
+        }
+        
+        return p.future
+    }
+    
+    /**
+     * Asynchronously executes the given block on the queue after a delay
+     * Identical to dispatch_after(dispatch_time, self.underlyingQueue, block)
+     */
+    public func after(delay: TimeInterval, block: () -> ()) {
+        dispatch_after(delay.dispatchTime, queue, block)
+    }
+    
+    public func after<T>(delay: TimeInterval, block: () -> T) -> Future<T> {
         let p = Promise<T>()
         
         dispatch_async(queue, {

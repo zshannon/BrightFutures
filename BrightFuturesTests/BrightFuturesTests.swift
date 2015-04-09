@@ -42,10 +42,10 @@ extension BrightFuturesTests {
         
         let completeExpectation = self.expectationWithDescription("immediate complete")
         
-        f.onComplete { (result: Result<Int>) in
+		f.onComplete(callback: { (result: Result<Int>) in
             XCTAssert(result.isSuccess)
             completeExpectation.fulfill()
-        }
+        })
         
         let successExpectation = self.expectationWithDescription("immediate success")
         
@@ -73,7 +73,7 @@ extension BrightFuturesTests {
         
         let completeExpectation = self.expectationWithDescription("immediate complete")
         
-        f.onComplete { result in
+		f.onComplete(callback: { result in
             switch result {
 			case .Cached(_):
 				XCTAssert(false)
@@ -85,7 +85,7 @@ extension BrightFuturesTests {
 				XCTAssert(false)
             }
             completeExpectation.fulfill()
-        }
+        })
         
         let failureExpectation = self.expectationWithDescription("immediate failure")
         
@@ -254,7 +254,7 @@ extension BrightFuturesTests {
         
         let e = self.expectationWithDescription("complete expectation")
         
-        p.future.onComplete { result in
+		p.future.onComplete(callback: { result in
             switch result {
 			case .Cached(let val):
 				XCTAssert(false)
@@ -267,7 +267,7 @@ extension BrightFuturesTests {
             }
             
             e.fulfill()
-        }
+        })
         
         self.waitForExpectationsWithTimeout(2, handler: nil)
     }
@@ -532,25 +532,25 @@ extension BrightFuturesTests {
     
     func testFilterNoSuchElement() {
         let e = self.expectation()
-        Future.succeeded(3).filter { $0 > 5}.onComplete { result in
+		Future.succeeded(3).filter { $0 > 5}.onComplete(callback: { result in
             if let err = result.error {
                 XCTAssert(err.code == ErrorCode.NoSuchElement.rawValue, "filter should yield no result")
             }
             
             e.fulfill()
-        }
+        })
         self.waitForExpectationsWithTimeout(2, handler: nil)
     }
     
     func testFilterPasses() {
         let e = self.expectation()
-        Future.succeeded("Thomas").filter { $0.hasPrefix("Th") }.onComplete { result in
+		Future.succeeded("Thomas").filter { $0.hasPrefix("Th") }.onComplete(callback: { result in
             if let val = result.value {
                 XCTAssert(val == "Thomas", "Filter should pass")
             }
             
             e.fulfill()
-        }
+        })
         
         self.waitForExpectationsWithTimeout(2, handler: nil)
     }
@@ -673,12 +673,12 @@ extension BrightFuturesTests {
     func testUtilsTraverseWithExecutionContext() {
         let e = self.expectation()
         
-        FutureUtils.traverse(Array(1...10), context: Queue.main.context) { _ -> Future<Int> in
+        FutureUtils.traverse(Array(1...10), context: Queue.main.context){ _ -> Future<Int> in
             XCTAssert(NSThread.isMainThread())
             return Future.succeeded(1)
-        }.onComplete { _ in
+		}.onComplete(callback: { _ in
             e.fulfill()
-        }
+        })
 
         self.waitForExpectationsWithTimeout(2, handler: nil)
     }
@@ -1003,5 +1003,5 @@ func fibonacciFuture(n: Int) -> Future<Int> {
 }
 
 func getMutablePointer (object: AnyObject) -> UnsafeMutablePointer<Void> {
-    return UnsafeMutablePointer<Void>(bitPattern: Word(ObjectIdentifier(object).uintValue()))
+    return UnsafeMutablePointer<Void>(bitPattern: Word(ObjectIdentifier(object).uintValue))
 }

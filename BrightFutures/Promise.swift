@@ -31,7 +31,7 @@ public class Promise<T> {
     }
     
     public func completeWith(future: Future<T>) {
-        future.onComplete { result in
+		future.onComplete(callback: { result in
             switch result {
 			case .Cached(let val):
 				self.cached(val.value)
@@ -42,7 +42,7 @@ public class Promise<T> {
 			case .Progress(let progress, let total):
 				self.progress(progress, total: total)
             }
-        }
+        })
     }
 	
 	public func cached(value: T) {
